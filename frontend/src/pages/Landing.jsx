@@ -14,9 +14,10 @@ export default function Landing() {
         Upload your CV, find suitable jobs, prepare truthful applications, and
         track everything. You approve every submission.
       </p>
-      <Link to="/dashboard" className="inline-block mt-6 px-5 py-2 bg-brand text-white rounded">
-        Get started
-      </Link>
+      <div className="mt-6 flex gap-3 justify-center">
+        <Link to="/register" className="px-5 py-2 bg-brand text-white rounded">Get started</Link>
+        <Link to="/login" className="px-5 py-2 border border-brand text-brand rounded">Log in</Link>
+      </div>
       <p className="mt-6 text-sm text-gray-500">Backend API: {api}</p>
     </div>
   );

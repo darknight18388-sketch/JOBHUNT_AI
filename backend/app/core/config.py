@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     frontend_origin: str = "http://localhost:5173"
     upload_dir: str = "../uploads"
     log_level: str = "INFO"
+    access_token_minutes: int = 60
 
 
 settings = Settings()

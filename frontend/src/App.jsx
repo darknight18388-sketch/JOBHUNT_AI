@@ -9,12 +9,17 @@ import Documents from "./pages/Documents.jsx";
 import Applications from "./pages/Applications.jsx";
 import Interview from "./pages/Interview.jsx";
 import Notifications from "./pages/Notifications.jsx";
+import Login from "./pages/Login.jsx";
+import Register from "./pages/Register.jsx";
+import ProtectedRoute from "./components/ProtectedRoute.jsx";
 
 export default function App() {
   return (
     <Routes>
       <Route path="/" element={<Landing />} />
-      <Route element={<Layout />}>
+      <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
+      <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/cv" element={<CV />} />

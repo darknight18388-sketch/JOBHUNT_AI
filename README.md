@@ -19,7 +19,7 @@ npm run dev     # http://localhost:5173
 ## Roadmap
 - [x] Phase 1 - Environment check script
 - [x] Phase 2 - Project skeleton and UI
-- [ ] Phase 3 - Database and authentication
+- [x] Phase 3 - Database and authentication
 - [ ] Phase 4 - CV upload and parsing
 - [ ] Phase 5 - Job connectors
 - [ ] Phase 6 - Matching engine
