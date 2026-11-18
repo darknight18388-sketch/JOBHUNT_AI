@@ -1,0 +1,59 @@
+{
+  "00-warning": "TEST FIXTURE",
+  "job-count": 4,
+  "jobs": [
+    {
+      "id": 9001,
+      "url": "https://remotive.com/remote-jobs/software-dev/test-python-developer-9001",
+      "title": "Python Developer",
+      "company_name": "TestCo",
+      "category": "Software Development",
+      "tags": [
+        "python",
+        "fastapi"
+      ],
+      "job_type": "full_time",
+      "publication_date": "2026-11-10T09:00:00",
+      "candidate_required_location": "Worldwide",
+      "salary": "$50k-$70k",
+      "description": "<p>Build <b>APIs</b> with Python &amp; FastAPI.</p><ul><li>Remote first</li><li>PostgreSQL</li></ul>"
+    },
+    {
+      "id": 9002,
+      "url": "https://remotive.com/remote-jobs/software-dev/test-python-developer-9002",
+      "title": "Python  Developer",
+      "company_name": "TestCo",
+      "category": "Software Development",
+      "tags": [
+        "python"
+      ],
+      "job_type": "full_time",
+      "publication_date": "2026-11-10T09:00:00",
+      "candidate_required_location": "Worldwide",
+      "salary": "",
+      "description": "<p>Same job re-posted with a new id.</p>"
+    },
+    {
+      "id": 9003,
+      "url": "https://remotive.com/remote-jobs/qa/test-qa-engineer-9003",
+      "title": "QA Engineer",
+      "company_name": "OldCorp",
+      "category": "QA",
+      "tags": [
+        "testing"
+      ],
+      "job_type": "contract",
+      "publication_date": "2026-06-01T09:00:00",
+      "candidate_required_location": "Europe",
+      "salary": "",
+      "description": "<p>Old posting for stale-label test.</p>"
+    },
+    {
+      "id": 9004,
+      "url": "http://insecure.example.com/x",
+      "title": "Bad URL job",
+      "company_name": "X",
+      "description": "should be skipped (non-https url)"
+    }
+  ]
+}

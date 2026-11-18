@@ -38,3 +38,16 @@ export const getAnalysis = (id) => request(`/api/resumes/${id}/analysis`);
 export const saveAnalysis = (id, body) =>
   request(`/api/resumes/${id}/analysis`, { method: "PUT", body: JSON.stringify(body) });
 export const deleteResume = (id) => request(`/api/resumes/${id}`, { method: "DELETE" });
+
+export const listJobs = (params = {}) => {
+  const qs = new URLSearchParams(
+    Object.entries(params).filter(([, v]) => v !== "" && v !== undefined && v !== null)
+  ).toString();
+  return request(`/api/jobs${qs ? `?${qs}` : ""}`);
+};
+export const getJob = (id) => request(`/api/jobs/${id}`);
+export const refreshJobs = () => request("/api/jobs/refresh", { method: "POST" });
+export const jobSources = () => request("/api/jobs/sources");
+export const addManualJob = (body) =>
+  request("/api/jobs/manual", { method: "POST", body: JSON.stringify(body) });
+export const deleteJob = (id) => request(`/api/jobs/${id}`, { method: "DELETE" });
