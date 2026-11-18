@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     upload_dir: str = "../uploads"
     log_level: str = "INFO"
     access_token_minutes: int = 60
+    max_upload_mb: int = 5
 
 
 settings = Settings()

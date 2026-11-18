@@ -5,7 +5,8 @@ export const setToken = (t) => localStorage.setItem(TOKEN_KEY, t);
 export const clearToken = () => localStorage.removeItem(TOKEN_KEY);
 
 async function request(path, options = {}) {
-  const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
+  const headers = { ...(options.headers || {}) };
+  if (!(options.body instanceof FormData)) headers["Content-Type"] = "application/json";
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
   const r = await fetch(path, { ...options, headers });
@@ -25,3 +26,15 @@ export const login = async (email, password) => {
   setToken(d.access_token);
 };
 export const me = () => request("/api/auth/me");
+
+export const listResumes = () => request("/api/resumes");
+export const uploadResume = (file) => {
+  const fd = new FormData();
+  fd.append("file", file);
+  return request("/api/resumes/upload", { method: "POST", body: fd });
+};
+export const analyzeResume = (id) => request(`/api/resumes/${id}/analyze`, { method: "POST" });
+export const getAnalysis = (id) => request(`/api/resumes/${id}/analysis`);
+export const saveAnalysis = (id, body) =>
+  request(`/api/resumes/${id}/analysis`, { method: "PUT", body: JSON.stringify(body) });
+export const deleteResume = (id) => request(`/api/resumes/${id}`, { method: "DELETE" });

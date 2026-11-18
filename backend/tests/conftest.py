@@ -1,6 +1,10 @@
 import os
 
+import tempfile
+from pathlib import Path
+
 os.environ["DATABASE_URL"] = "sqlite://"  # tests never touch PostgreSQL
+os.environ["UPLOAD_DIR"] = tempfile.mkdtemp(prefix="jobhunt_test_uploads_")
 
 import pytest
 from fastapi.testclient import TestClient
@@ -30,3 +34,5 @@ def client():
     app.dependency_overrides[get_db] = override
     yield TestClient(app)
     app.dependency_overrides.clear()
+    for f in Path(os.environ["UPLOAD_DIR"]).glob("*"):
+        f.unlink()

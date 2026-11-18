@@ -20,7 +20,7 @@ npm run dev     # http://localhost:5173
 - [x] Phase 1 - Environment check script
 - [x] Phase 2 - Project skeleton and UI
 - [x] Phase 3 - Database and authentication
-- [ ] Phase 4 - CV upload and parsing
+- [x] Phase 4 - CV upload and parsing
 - [ ] Phase 5 - Job connectors
 - [ ] Phase 6 - Matching engine
 - [ ] Phase 7 - AI documents
