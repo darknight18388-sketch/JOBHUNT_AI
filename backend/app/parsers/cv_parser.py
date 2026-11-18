@@ -57,6 +57,15 @@ INLINE_RE = re.compile(
     r"certifications?|certificates)\s*[:\-\u2013\u2014]\s*(\S.*)$", re.I)
 
 
+def _despace(line: str) -> str:
+    """Join letter-spaced text such as 'E D U C A T I O N' into 'EDUCATION'."""
+    out = []
+    for chunk in re.split(r"\s{2,}", line.strip()):
+        toks = chunk.split(" ")
+        out.append("".join(toks) if len(toks) >= 3 and all(len(t) == 1 for t in toks) else chunk)
+    return " ".join(out)
+
+
 def _classify(text: str):
     t = re.sub(r"\s+", " ", text.strip().strip(":-\u2013\u2014\u2022*_|#").strip().lower())
     if t in _HEADING_LOOKUP:
@@ -80,6 +89,7 @@ def _looks_like_heading(line: str) -> bool:
 
 
 def _heading(line: str):
+    line = _despace(line)
     t = line.strip().strip(":").strip().lower()
     if t in _HEADING_LOOKUP:
         return _HEADING_LOOKUP[t]
@@ -106,6 +116,12 @@ def _sections(lines):
             cur = h
             out.setdefault(cur, [])
         elif cur and line.strip():
+            stripped = line.strip()
+            is_bullet = stripped[0] in BULLETS
+            if not is_bullet and stripped[0].islower() and out[cur]:
+                # wrapped continuation of the previous line
+                out[cur][-1] = (out[cur][-1] + " " + stripped)[:300]
+                continue
             c = _clean(line)
             if len(c) >= 3:
                 out[cur].append(c)
@@ -149,7 +165,15 @@ def parse_cv(text: str) -> dict:
     skills = skills[:60]
 
     lang_text = " ".join(sec.get("languages", []))
-    languages = [l for l in LANGUAGES if re.search(rf"\b{l}\b", lang_text, re.I)]
+    if not lang_text:  # a line made up only of language names, e.g. "English • Tamil • Sinhala"
+        for line in lines:
+            parts = [p.strip() for p in re.split(r"[,;|\u2022/]", line) if p.strip()]
+            if len(parts) >= 2 and all(p.lower() in {l.lower() for l in LANGUAGES} for p in parts):
+                lang_text = line
+                break
+    found = [(m.start(), l) for l in LANGUAGES
+             if (m := re.search(rf"\b{l}\b", lang_text, re.I))]
+    languages = [l for _, l in sorted(found)]  # keep the order used in the CV
 
     data = {
         "full_name": _name(lines),

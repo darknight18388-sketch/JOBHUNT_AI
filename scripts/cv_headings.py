@@ -20,5 +20,6 @@ with SessionLocal() as db:
     print(f"File type: {r.file_type}, characters: {len(r.extracted_text)}")
     for i, line in enumerate(r.extracted_text.splitlines()):
         t = line.strip()
-        if t and len(t.split()) <= 6 and not any(c.isdigit() for c in t) and "@" not in t:
-            print(f"{i:3d}: {t!r}")
+        spaced = sum(len(w) == 1 for w in t.split()) >= 4
+        if t and (spaced or (len(t.split()) <= 6 and not any(c.isdigit() for c in t) and "@" not in t)):
+            print(f"{i:3d}: {t!r}{'   <-- letter-spaced' if spaced else ''}")

@@ -41,3 +41,39 @@ def test_skill_like_titles_do_not_end_sections():
     d = parse_cv(text)
     assert "Project Management" in d["skills"]
     assert d["education"] == ["BSc Engineering"]
+
+
+def test_letter_spaced_headings():
+    text = """Nimal Perera
+S K I L L S
+AutoCAD, SolidWorks
+L A N G U A G E S
+English  •  Tamil  •  Sinhala
+E D U C A T I O N
+BSc Engineering, University of Moratuwa
+W O R K   E X P E R I E N C E
+Trainee Engineer, ABC Ltd
+"""
+    d = parse_cv(text)
+    assert d["languages"] == ["English", "Tamil", "Sinhala"]
+    assert any("Moratuwa" in e for e in d["education"])
+    assert any("ABC Ltd" in e for e in d["experience"])
+    assert {"AutoCAD", "SolidWorks"} <= set(d["skills"])
+
+
+def test_wrapped_bullet_lines_are_merged():
+    text = "KEY SKILLS\n• Mechanical maintenance &\ntroubleshooting\n• Preventive & corrective\nmaintenance\n"
+    d = parse_cv(text)
+    assert "Mechanical maintenance & troubleshooting" in d["skills"]
+    assert "Preventive & corrective maintenance" in d["skills"]
+    assert "troubleshooting" not in d["skills"]
+
+
+def test_language_only_line_without_heading():
+    d = parse_cv("Nimal Perera\nEnglish  •  Tamil  •  Sinhala\n")
+    assert d["languages"] == ["English", "Tamil", "Sinhala"]
+
+
+def test_language_fallback_does_not_fire_on_normal_text():
+    d = parse_cv("Nimal Perera\nFluent in English communication at work\n")
+    assert d["languages"] == []
