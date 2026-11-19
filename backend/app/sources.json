@@ -1,0 +1,7 @@
+{
+  "_help": "Add ONLY official feeds the publisher offers for this use. 'country' = ISO code (see app/core/countries.py). Checked Nov 2026: ITPro.lk publishes RSS feeds at https://itpro.lk/rss/ for subscribers.",
+  "rss": [
+    {"name": "itpro-all", "country": "LK", "url": "https://itpro.lk/rss/all/", "enabled": true},
+    {"name": "itpro-internship", "country": "LK", "url": "https://itpro.lk/rss/all/internship", "enabled": true}
+  ]
+}

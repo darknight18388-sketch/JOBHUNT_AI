@@ -21,7 +21,7 @@ npm run dev     # http://localhost:5173
 - [x] Phase 2 - Project skeleton and UI
 - [x] Phase 3 - Database and authentication
 - [x] Phase 4 - CV upload and parsing
-- [x] Phase 5 - Job connectors
+- [x] Phase 5 - Job connectors (+ country search)
 - [ ] Phase 6 - Matching engine
 - [ ] Phase 7 - AI documents
 - [ ] Phase 8 - Application workflow (explicit approval only)

@@ -12,6 +12,7 @@ class JobOut(BaseModel):
     title: str
     company: str
     location: str
+    country: str
     is_remote: bool
     job_type: str
     salary_text: str
@@ -21,7 +22,7 @@ class JobOut(BaseModel):
     posted_at: datetime | None
     fetched_at: datetime
     is_stale: bool
-    is_manual: bool
+    is_manual: bool  # added/imported by the user: private and unverified
 
 
 class JobList(BaseModel):
@@ -36,6 +37,7 @@ class SourceOut(BaseModel):
     name: str
     site_url: str
     attribution: str
+    enabled: bool
     last_status: str
     last_error: str
     last_count: int
@@ -53,10 +55,32 @@ class RefreshResult(BaseModel):
     message: str = ""
 
 
+class SearchIn(BaseModel):
+    query: str = Field(default="", max_length=100)  # blank = build searches from your CV
+    country: str = Field(default="ALL", max_length=8)
+    location: str = Field(default="", max_length=100)
+    include_remote: bool = True
+
+
+class SearchOut(BaseModel):
+    queries: list[str]
+    country: str
+    sources: list[RefreshResult]
+    note: str = ""
+    jobs: list[JobOut]
+    total: int
+
+
+class ImportIn(BaseModel):
+    url: str = Field(min_length=8, max_length=1000)
+    country: str = Field(default="", max_length=8)
+
+
 class ManualJobIn(BaseModel):
     title: str = Field(min_length=2, max_length=300)
     company: str = Field(min_length=1, max_length=200)
     location: str = Field(default="", max_length=200)
+    country: str = Field(default="", max_length=8)
     is_remote: bool = False
     job_type: str = Field(default="", max_length=50)
     salary_text: str = Field(default="", max_length=200)

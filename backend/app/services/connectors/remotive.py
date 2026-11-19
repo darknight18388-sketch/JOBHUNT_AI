@@ -21,7 +21,7 @@ def html_to_text(raw: str, limit: int = 20000) -> str:
     return t[:limit]
 
 
-def _date(value) -> datetime | None:
+def parse_date(value) -> datetime | None:
     if not value or not isinstance(value, str):
         return None
     try:
@@ -47,13 +47,14 @@ def parse_remotive(payload) -> list[NormalizedJob]:
             title=title[:300],
             company=(j.get("company_name") or "")[:200],
             location=(j.get("candidate_required_location") or "Worldwide")[:200],
+            country="ANY",
             is_remote=True,
             job_type=(j.get("job_type") or "")[:50],
             salary_text=(j.get("salary") or "")[:200],
             description=html_to_text(j.get("description") or ""),
             url=url[:1000],
             tags=tags,
-            posted_at=_date(j.get("publication_date")),
+            posted_at=parse_date(j.get("publication_date")),
         ))
     return out
 
@@ -64,7 +65,7 @@ class RemotiveConnector(JobConnector):
     site_url = "https://remotive.com"
     attribution = "Job via Remotive (https://remotive.com)"
 
-    def fetch(self) -> list[NormalizedJob]:
+    def fetch(self, query: str = "", country: str = "ALL", location: str = "") -> list[NormalizedJob]:
         r = httpx.get(API_URL, timeout=20, follow_redirects=True,
                       headers={"User-Agent": "JOBHUNT-AI/0.1 (personal job-search assistant)"})
         r.raise_for_status()

@@ -15,6 +15,12 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     access_token_minutes: int = 60
     max_upload_mb: int = 5
+    # Optional free job-source keys (leave empty to skip that source)
+    adzuna_app_id: str = ""
+    adzuna_app_key: str = ""
+    adzuna_country: str = "gb"
+    jooble_api_key: str = ""
+    enable_arbeitnow: bool = False  # personal, non-commercial use only per its terms
 
 
 settings = Settings()

@@ -35,6 +35,7 @@ class Job(Base):
     title: Mapped[str] = mapped_column(String(300))
     company: Mapped[str] = mapped_column(String(200), default="")
     location: Mapped[str] = mapped_column(String(200), default="")
+    country: Mapped[str] = mapped_column(String(8), default="", server_default="", index=True)
     is_remote: Mapped[bool] = mapped_column(Boolean, default=False)
     job_type: Mapped[str] = mapped_column(String(50), default="")
     salary_text: Mapped[str] = mapped_column(String(200), default="")

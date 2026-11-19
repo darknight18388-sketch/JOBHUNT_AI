@@ -19,7 +19,7 @@ def auth(client, email="a@example.com"):
 @pytest.fixture()
 def fixture_source(monkeypatch):
     items = parse_remotive(FIX)
-    monkeypatch.setattr(jobs_api.CONNECTORS["remotive"], "fetch", lambda: items)
+    monkeypatch.setattr(jobs_api.CONNECTORS["remotive"], "fetch", lambda *a, **k: items)
 
 
 MANUAL = {"title": "Trainee Mechanical Engineer", "company": "ABC Engineering (Pvt) Ltd",
@@ -46,13 +46,13 @@ def test_parse_rejects_unexpected_format():
 
 def test_requires_auth(client):
     assert client.get("/api/jobs").status_code == 401
-    assert client.post("/api/jobs/refresh").status_code == 401
+    assert client.post("/api/jobs/search", json={"query": "python"}).status_code == 401
     assert client.post("/api/jobs/manual", json=MANUAL).status_code == 401
 
 
 def test_refresh_ingests_dedupes_and_attributes(client, fixture_source):
     h = auth(client)
-    r = client.post("/api/jobs/refresh", headers=h).json()
+    r = client.post("/api/jobs/search", headers=h, json={"query": "python"}).json()["sources"]
     assert r[0]["status"] == "ok"
     assert (r[0]["created"], r[0]["duplicates"]) == (2, 1)  # 9002 duplicates 9001
     data = client.get("/api/jobs", headers=h).json()
@@ -67,28 +67,28 @@ def test_refresh_ingests_dedupes_and_attributes(client, fixture_source):
 
 def test_refresh_is_rate_limited_per_source_terms(client, fixture_source):
     h = auth(client)
-    assert client.post("/api/jobs/refresh", headers=h).json()[0]["status"] == "ok"
-    second = client.post("/api/jobs/refresh", headers=h).json()[0]
+    assert client.post("/api/jobs/search", headers=h, json={"query": "python"}).json()["sources"][0]["status"] == "ok"
+    second = client.post("/api/jobs/search", headers=h, json={"query": "python"}).json()["sources"][0]
     assert second["status"] == "skipped" and "Next refresh" in second["message"]
     assert client.get("/api/jobs", headers=h).json()["total"] == 2  # nothing re-fetched
 
 
 def test_source_outage_is_logged_not_crashing(client, monkeypatch):
-    def boom():
+    def boom(*a, **k):
         raise httpx.ConnectError("network down")
     monkeypatch.setattr(jobs_api.CONNECTORS["remotive"], "fetch", boom)
     h = auth(client)
-    r = client.post("/api/jobs/refresh", headers=h)
-    assert r.status_code == 200 and r.json()[0]["status"] == "error"
+    r = client.post("/api/jobs/search", headers=h, json={"query": "python"})
+    assert r.status_code == 200 and r.json()["sources"][0]["status"] == "error"
     src = client.get("/api/jobs/sources", headers=h).json()[0]
     assert src["last_status"] == "error" and "ConnectError" in src["last_error"]
     # retried immediately -> guarded by the short retry delay
-    assert client.post("/api/jobs/refresh", headers=h).json()[0]["status"] == "skipped"
+    assert client.post("/api/jobs/search", headers=h, json={"query": "python"}).json()["sources"][0]["status"] == "skipped"
 
 
 def test_filters_and_pagination(client, fixture_source):
     h = auth(client)
-    client.post("/api/jobs/refresh", headers=h)
+    client.post("/api/jobs/search", headers=h, json={"query": "python"})
     assert client.get("/api/jobs?q=python", headers=h).json()["total"] == 1
     assert client.get("/api/jobs?q=fastapi", headers=h).json()["total"] == 1  # description match
     assert client.get("/api/jobs?location=europe", headers=h).json()["total"] == 1
@@ -101,7 +101,7 @@ def test_filters_and_pagination(client, fixture_source):
 
 def test_job_detail_returns_full_description(client, fixture_source):
     h = auth(client)
-    client.post("/api/jobs/refresh", headers=h)
+    client.post("/api/jobs/search", headers=h, json={"query": "python"})
     jid = client.get("/api/jobs?q=python", headers=h).json()["items"][0]["id"]
     d = client.get(f"/api/jobs/{jid}", headers=h).json()
     assert "PostgreSQL" in d["description"]
@@ -134,6 +134,6 @@ def test_manual_duplicate_and_validation(client):
 
 def test_public_jobs_cannot_be_deleted_by_users(client, fixture_source):
     h = auth(client)
-    client.post("/api/jobs/refresh", headers=h)
+    client.post("/api/jobs/search", headers=h, json={"query": "python"})
     jid = client.get("/api/jobs", headers=h).json()["items"][0]["id"]
     assert client.delete(f"/api/jobs/{jid}", headers=h).status_code == 404

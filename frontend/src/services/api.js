@@ -46,7 +46,11 @@ export const listJobs = (params = {}) => {
   return request(`/api/jobs${qs ? `?${qs}` : ""}`);
 };
 export const getJob = (id) => request(`/api/jobs/${id}`);
-export const refreshJobs = () => request("/api/jobs/refresh", { method: "POST" });
+export const getCountries = () => request("/api/countries");
+export const searchJobs = (body) =>
+  request("/api/jobs/search", { method: "POST", body: JSON.stringify(body) });
+export const importJobUrl = (url, country) =>
+  request("/api/jobs/import-url", { method: "POST", body: JSON.stringify({ url, country }) });
 export const jobSources = () => request("/api/jobs/sources");
 export const addManualJob = (body) =>
   request("/api/jobs/manual", { method: "POST", body: JSON.stringify(body) });

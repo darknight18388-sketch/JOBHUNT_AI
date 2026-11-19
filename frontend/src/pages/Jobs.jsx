@@ -1,38 +1,46 @@
 import { useEffect, useState } from "react";
-import { listJobs, getJob, refreshJobs, addManualJob, deleteJob } from "../services/api";
+import {
+  listJobs, getJob, searchJobs, getCountries, addManualJob, importJobUrl, deleteJob,
+} from "../services/api";
 
 const EMPTY = { title: "", company: "", location: "", url: "", description: "", is_remote: false };
 
 export default function Jobs() {
-  const [data, setData] = useState({ items: [], total: 0, page: 1, limit: 20 });
-  const [q, setQ] = useState("");
-  const [remote, setRemote] = useState(false);
-  const [page, setPage] = useState(1);
+  const [countries, setCountries] = useState([{ code: "ALL", name: "All countries" }]);
+  const [country, setCountry] = useState(localStorage.getItem("jh_country") || "ALL");
+  const [query, setQuery] = useState("");
+  const [includeRemote, setIncludeRemote] = useState(true);
+  const [jobs, setJobs] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [info, setInfo] = useState(null);
   const [open, setOpen] = useState({});
-  const [showForm, setShowForm] = useState(false);
+  const [panel, setPanel] = useState(""); // "", "manual" or "import"
   const [form, setForm] = useState(EMPTY);
+  const [link, setLink] = useState("");
   const [msg, setMsg] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const load = (p = page) =>
-    listJobs({ q, remote: remote ? "true" : "", page: p, limit: 20 })
-      .then(setData)
+  useEffect(() => { getCountries().then(setCountries).catch(() => {}); }, []);
+
+  const reload = () =>
+    listJobs({ country, include_remote: includeRemote ? "true" : "false", limit: 30 })
+      .then((d) => { setJobs(d.items); setTotal(d.total); })
       .catch((e) => setError(e.message));
-  useEffect(() => { load(1); setPage(1); }, [remote]);
+  useEffect(() => { localStorage.setItem("jh_country", country); setInfo(null); reload(); }, [country, includeRemote]);
 
   async function wrap(fn) {
     setBusy(true); setError(""); setMsg("");
     try { await fn(); } catch (e) { setError(e.message); } finally { setBusy(false); }
   }
 
-  const doRefresh = () => wrap(async () => {
-    const res = await refreshJobs();
-    setMsg(res.map((r) =>
-      r.status === "ok" ? `${r.source}: ${r.created} new, ${r.duplicates} duplicates skipped`
-        : `${r.source}: ${r.status}. ${r.message}`).join(" | "));
-    await load(1); setPage(1);
-  });
+  const find = (e) => {
+    e?.preventDefault();
+    wrap(async () => {
+      const r = await searchJobs({ country, query, include_remote: includeRemote });
+      setJobs(r.jobs); setTotal(r.total); setInfo(r);
+    });
+  };
 
   const toggle = (id) => wrap(async () => {
     if (open[id]) return setOpen({ ...open, [id]: null });
@@ -42,50 +50,82 @@ export default function Jobs() {
   const submitManual = (e) => {
     e.preventDefault();
     wrap(async () => {
-      await addManualJob(form);
-      setForm(EMPTY); setShowForm(false);
+      await addManualJob({ ...form, country: country === "ALL" ? "" : country });
+      setForm(EMPTY); setPanel("");
       setMsg("Job added to your private list.");
-      await load(1); setPage(1);
+      await reload();
+    });
+  };
+
+  const submitImport = (e) => {
+    e.preventDefault();
+    wrap(async () => {
+      await importJobUrl(link, country === "ALL" ? "" : country);
+      setLink(""); setPanel("");
+      setMsg("Job imported to your private list. Check it against the official posting.");
+      await reload();
     });
   };
 
   const remove = (id) => {
     if (!window.confirm("Remove this job you added?")) return;
-    wrap(async () => { await deleteJob(id); await load(); });
+    wrap(async () => { await deleteJob(id); await reload(); });
   };
 
   const input = "w-full border rounded px-3 py-2 bg-white";
-  const pages = Math.max(1, Math.ceil(data.total / data.limit));
+  const countryName = (c) => (c === "ANY" ? "Remote (worldwide)" : (countries.find((x) => x.code === c) || {}).name || c);
 
   return (
     <div className="max-w-3xl">
       <h2 className="text-2xl font-semibold">Find Jobs</h2>
       <p className="text-gray-600 mt-1 text-sm">
-        Vacancies from permitted sources, each with its source and a link to the official
-        posting. For Sri Lankan vacancies, add them yourself with the link and description.
+        Pick a country. We check the sources that serve it and show each vacancy with its source and a
+        link to the official posting.
       </p>
 
-      <div className="mt-4 flex flex-wrap gap-2 items-center">
-        <input className="border rounded px-3 py-2 flex-1 min-w-[12rem]" placeholder="Search title, company, skills"
-          value={q} onChange={(e) => setQ(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && (setPage(1), load(1))} />
-        <button className="px-4 py-2 border rounded" onClick={() => { setPage(1); load(1); }}>Search</button>
-        <label className="text-sm flex items-center gap-1">
-          <input type="checkbox" checked={remote} onChange={(e) => setRemote(e.target.checked)} /> Remote only
+      <form onSubmit={find} className="mt-4 grid gap-3 bg-white border rounded p-4 sm:grid-cols-[200px_1fr_auto]">
+        <label className="text-sm font-medium">Country
+          <select className={`${input} mt-1`} value={country} onChange={(e) => setCountry(e.target.value)}>
+            {countries.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
+          </select>
         </label>
-      </div>
+        <label className="text-sm font-medium">Job title or skill (optional)
+          <input className={`${input} mt-1`} placeholder="Leave blank to search from your CV"
+            value={query} onChange={(e) => setQuery(e.target.value)} />
+        </label>
+        <button disabled={busy} className="self-end px-5 py-2 bg-brand text-white rounded">
+          {busy ? "Working..." : "Find jobs"}
+        </button>
+        <label className="text-sm flex items-center gap-2 sm:col-span-3">
+          <input type="checkbox" checked={includeRemote} onChange={(e) => setIncludeRemote(e.target.checked)} />
+          Include worldwide remote jobs
+        </label>
+      </form>
+
       <div className="mt-3 flex gap-2">
-        <button disabled={busy} onClick={doRefresh} className="px-4 py-2 bg-brand text-white rounded">
-          {busy ? "Working..." : "Refresh from sources"}
+        <button onClick={() => setPanel(panel === "import" ? "" : "import")} className="px-4 py-2 border border-brand text-brand rounded">
+          Import from link
         </button>
-        <button onClick={() => setShowForm(!showForm)} className="px-4 py-2 border border-brand text-brand rounded">
-          {showForm ? "Cancel" : "Add a job manually"}
+        <button onClick={() => setPanel(panel === "manual" ? "" : "manual")} className="px-4 py-2 border border-brand text-brand rounded">
+          Add manually
         </button>
       </div>
-      {error && <p className="mt-3 text-red-600 text-sm">{error}</p>}
+
+      {error && <p role="alert" className="mt-3 text-red-600 text-sm">{error}</p>}
       {msg && <p className="mt-3 text-green-700 text-sm">{msg}</p>}
 
-      {showForm && (
+      {panel === "import" && (
+        <form onSubmit={submitImport} className="mt-4 space-y-2 bg-white border rounded p-4">
+          <input className={input} type="url" required placeholder="https://... (one vacancy page)"
+            value={link} onChange={(e) => setLink(e.target.value)} />
+          <p className="text-xs text-gray-500">
+            Works only on pages that publish structured job data and allow automated reading. Otherwise use "Add manually".
+          </p>
+          <button disabled={busy} className="px-4 py-2 bg-brand text-white rounded">Import</button>
+        </form>
+      )}
+
+      {panel === "manual" && (
         <form onSubmit={submitManual} className="mt-4 space-y-2 bg-white border rounded p-4">
           <input className={input} placeholder="Job title *" required value={form.title}
             onChange={(e) => setForm({ ...form, title: e.target.value })} />
@@ -106,14 +146,25 @@ export default function Jobs() {
         </form>
       )}
 
-      <p className="mt-5 text-sm text-gray-500">{data.total} job(s)</p>
-      {data.items.length === 0 && (
-        <p className="mt-2 text-gray-600">
-          No jobs yet. Click "Refresh from sources", or add a vacancy manually.
-        </p>
+      {info && (
+        <div className="mt-4 text-sm text-gray-600">
+          Searched for <b>{info.queries.join(", ")}</b> ·{" "}
+          {info.sources.map((s) =>
+            s.status === "ok" ? `${s.source}: ${s.created} new`
+              : s.status === "skipped" ? `${s.source}: used saved results`
+              : `${s.source}: unavailable`).join(" · ")}
+          {info.note && <p className="mt-2 rounded bg-amber-50 border border-amber-200 p-2 text-amber-900">{info.note}</p>}
+        </div>
+      )}
+
+      <p className="mt-5 text-sm text-gray-500">
+        {total} job(s){total > jobs.length ? `, showing the latest ${jobs.length}` : ""}
+      </p>
+      {jobs.length === 0 && (
+        <p className="mt-2 text-gray-600">No jobs here yet. Click "Find jobs", import a vacancy link, or add one manually.</p>
       )}
       <ul className="mt-2 space-y-3">
-        {data.items.map((j) => {
+        {jobs.map((j) => {
           const d = open[j.id];
           return (
             <li key={j.id} className="bg-white border rounded p-4">
@@ -121,8 +172,8 @@ export default function Jobs() {
                 <div>
                   <h3 className="font-semibold">{j.title}</h3>
                   <p className="text-sm text-gray-600">
-                    {j.company}{j.location ? ` · ${j.location}` : ""}{j.is_remote ? " · Remote" : ""}
-                    {j.salary_text ? ` · ${j.salary_text}` : ""}
+                    {[j.company, j.location, j.country ? countryName(j.country) : "", j.is_remote && j.country !== "ANY" ? "Remote" : "", j.salary_text]
+                      .filter(Boolean).join(" · ")}
                   </p>
                 </div>
                 <div className="text-right text-xs space-y-1">
@@ -130,9 +181,7 @@ export default function Jobs() {
                   {j.is_manual && <span className="inline-block px-2 py-0.5 bg-blue-100 text-blue-800 rounded">Unverified</span>}
                 </div>
               </div>
-              <p className="mt-2 text-sm text-gray-700 whitespace-pre-line">
-                {d ? d.description : j.description}
-              </p>
+              <p className="mt-2 text-sm text-gray-700 whitespace-pre-line">{d ? d.description : j.description}</p>
               <div className="mt-3 flex flex-wrap gap-3 items-center text-sm">
                 <button className="text-brand underline" onClick={() => toggle(j.id)}>
                   {d ? "Show less" : "Full description"}
@@ -142,9 +191,7 @@ export default function Jobs() {
                     View official posting
                   </a>
                 )}
-                {j.is_manual && (
-                  <button className="text-red-600 underline" onClick={() => remove(j.id)}>Remove</button>
-                )}
+                {j.is_manual && <button className="text-red-600 underline" onClick={() => remove(j.id)}>Remove</button>}
                 <span className="text-gray-500 text-xs ml-auto">
                   {j.attribution}{j.posted_at ? ` · posted ${new Date(j.posted_at).toLocaleDateString()}` : ""}
                 </span>
@@ -153,16 +200,6 @@ export default function Jobs() {
           );
         })}
       </ul>
-
-      {pages > 1 && (
-        <div className="mt-4 flex gap-2 items-center text-sm">
-          <button disabled={page <= 1} className="px-3 py-1 border rounded"
-            onClick={() => { setPage(page - 1); load(page - 1); }}>Prev</button>
-          <span>Page {page} / {pages}</span>
-          <button disabled={page >= pages} className="px-3 py-1 border rounded"
-            onClick={() => { setPage(page + 1); load(page + 1); }}>Next</button>
-        </div>
-      )}
     </div>
   );
 }

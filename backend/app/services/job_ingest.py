@@ -29,7 +29,7 @@ def ingest(db: Session, source_key: str, items: list[NormalizedJob], owner_id=No
                                                Job.external_id == it.external_id))
         key = dedupe_key(it.title, it.company, it.location)
         if existing:
-            for f in ("title", "company", "location", "is_remote", "job_type", "salary_text",
+            for f in ("title", "company", "location", "country", "is_remote", "job_type", "salary_text",
                       "description", "url", "tags", "posted_at"):
                 setattr(existing, f, getattr(it, f))
             existing.dedupe_key, existing.fetched_at = key, now
@@ -39,7 +39,7 @@ def ingest(db: Session, source_key: str, items: list[NormalizedJob], owner_id=No
             stats["duplicates"] += 1
             continue
         db.add(Job(source_key=source_key, external_id=it.external_id, owner_user_id=owner_id,
-                   title=it.title, company=it.company, location=it.location,
+                   title=it.title, company=it.company, location=it.location, country=it.country,
                    is_remote=it.is_remote, job_type=it.job_type, salary_text=it.salary_text,
                    description=it.description, url=it.url, tags=list(it.tags),
                    posted_at=it.posted_at, fetched_at=now, dedupe_key=key))

@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import auth, health, jobs, resumes
+from app.api import auth, health, jobs, meta, resumes
 from app.core.config import settings
 
 app = FastAPI(title="JOBHUNT AI API", version="0.1.0")
@@ -18,3 +18,4 @@ app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(resumes.router)
 app.include_router(jobs.router)
+app.include_router(meta.router)
