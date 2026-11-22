@@ -25,14 +25,18 @@ HEADINGS = {
                    "work history"},
     "certifications": {"certifications", "certification", "certificates", "courses",
                        "training", "professional qualifications"},
-    "skills": {"skills", "technical skills", "key skills", "core skills", "skills summary"},
+    "skills": {"skills", "technical skills", "key skills", "core skills", "skills summary", "technical",
+               "management", "soft skills", "professional skills", "core competencies",
+               "competencies", "areas of expertise", "expertise"},
     "languages": {"languages", "language skills"},
-    "other": {"references", "referees", "summary", "profile", "objective",
+    "other": {"references", "referees", "summary", "profile", "objective", "professional",
+              "professional summary", "professional profile", "personal profile", "about me",
               "career objective", "personal details", "personal information", "projects",
               "interests", "hobbies", "declaration", "achievements",
               "extracurricular activities"},
 }
 _HEADING_LOOKUP = {h: k for k, hs in HEADINGS.items() for h in hs}
+_HEADING_COMPACT = {re.sub(r"\s+", "", h): k for h, k in _HEADING_LOOKUP.items()}
 LANGUAGES = ["English", "Sinhala", "Tamil", "Hindi", "French", "German", "Japanese",
              "Chinese", "Arabic", "Spanish"]
 
@@ -53,8 +57,9 @@ _FUZZY = [
 ]
 _CONNECTORS = {"and", "&", "of", "the", "in", "for"}
 INLINE_RE = re.compile(
-    r"^\s*(languages?|language skills|technical skills|key skills|core skills|skills|"
-    r"certifications?|certificates)\s*[:\-\u2013\u2014]\s*(\S.*)$", re.I)
+    r"^\s*(languages?|language skills|technical skills|key skills|core skills|skills|technical|management|"
+    r"soft skills|professional skills|core competencies|competencies|certifications?|certificates)"
+    r"\s*[:\-\u2013\u2014]\s*(\S.*)$", re.I)
 
 
 def _despace(line: str) -> str:
@@ -93,7 +98,58 @@ def _heading(line: str):
     t = line.strip().strip(":").strip().lower()
     if t in _HEADING_LOOKUP:
         return _HEADING_LOOKUP[t]
+    compact = re.sub(r"\s+", "", t)  # headings broken like "E d u c a t i o n" or "Ce rti f i c at e s"
+    if 3 <= len(compact) <= 30 and compact in _HEADING_COMPACT:
+        return _HEADING_COMPACT[compact]
     return _classify(line) if _looks_like_heading(line) else None
+
+
+COMMON_SHORT = {"a", "an", "am", "as", "at", "be", "by", "do", "go", "he", "if", "in", "is", "it", "me", "my",
+                "no", "of", "on", "or", "so", "to", "up", "us", "we", "ai", "ml", "hr", "qa", "ui", "ux", "pc",
+                "uk", "sl", "lk", "id", "tv", "ms", "mr", "dr"}
+CONTACT_RE = re.compile(r"^\s*(phone|mobile|tel|telephone|email|e-mail|whatsapp|linkedin|github|address|"
+                        r"website|portfolio)\b", re.I)
+LANG_NAMES = {l.lower() for l in LANGUAGES}
+LANG_LABELS = {"communication", "languages", "language", "languageskills"}
+FRAGMENTATION_LIMIT = 0.12
+
+
+def _compact(s: str) -> str:
+    return re.sub(r"[^a-z0-9+#]", "", s.lower())
+
+
+def _short_ratio(text: str) -> tuple[int, int]:
+    toks = re.findall(r"[A-Za-z]+", text)
+    return sum(1 for t in toks if len(t) <= 2 and t.lower() not in COMMON_SHORT), len(toks)
+
+
+def _fragmented(s: str) -> bool:
+    """True for text with spaces inside words, e.g. 'T roubleshootin g'."""
+    short, n = _short_ratio(s)
+    return n >= 3 and short / n > 0.3
+
+
+def _text_fragmentation(text: str) -> float:
+    short, n = _short_ratio(text)
+    return short / n if n >= 30 else 0.0
+
+
+def _is_contact(line: str) -> bool:
+    low = line.lower()
+    return bool(CONTACT_RE.match(line)) or "@" in line or "linkedin.com" in low or "github.com" in low
+
+
+def _language_line(line: str) -> bool:
+    """'English  •  Tamil  •  Sinhala' or 'Communication : English, Tamil & Sinhala' (also with
+    spaces inside the label). Only lines made up of language names count."""
+    body, labelled = line, False
+    if ":" in line:
+        left, right = line.split(":", 1)
+        if re.sub(r"\s+", "", left).lower() in LANG_LABELS:
+            body, labelled = right, True
+    parts = [re.sub(r"\(.*?\)", "", p).strip(" .") for p in re.split(r"[,;|\u2022/&]|\band\b", body, flags=re.I)]
+    parts = [p for p in parts if p]
+    return len(parts) >= (1 if labelled else 2) and all(p.lower() in LANG_NAMES for p in parts)
 
 
 def _clean(line: str) -> str:
@@ -139,7 +195,13 @@ def _name(lines):
 
 def parse_cv(text: str) -> dict:
     lines = text.splitlines()
-    sec = _sections(lines)
+    body, lang_lines = [], []
+    for line in lines:
+        if _language_line(line):
+            lang_lines.append(line)      # a languages line, wherever it sits
+        elif not _is_contact(line):      # phone / email / links are not education or experience
+            body.append(line)
+    sec = _sections(body)
 
     email = (EMAIL_RE.search(text) or [""])[0] if EMAIL_RE.search(text) else ""
     phone = ""
@@ -156,21 +218,20 @@ def parse_cv(text: str) -> dict:
             seen.add(k)
             skills.append(s)
 
+    compact_text = _compact(text)
     for name, rx in _SKILL_RES:
         if rx.search(text):
             add(name)
+        elif len(_compact(name)) >= 6 and _compact(name) in compact_text:
+            add(name)  # PDF text with spaces inside words: 'Solid W ork s' -> SolidWorks
     for entry in sec.get("skills", []):
         for part in re.split(r"[,;|•]", entry):
-            add(part.strip().lstrip(BULLETS).strip())
+            part = part.strip().lstrip(BULLETS).strip()
+            if part and not _fragmented(part):
+                add(part)
     skills = skills[:60]
 
-    lang_text = " ".join(sec.get("languages", []))
-    if not lang_text:  # a line made up only of language names, e.g. "English • Tamil • Sinhala"
-        for line in lines:
-            parts = [p.strip() for p in re.split(r"[,;|\u2022/]", line) if p.strip()]
-            if len(parts) >= 2 and all(p.lower() in {l.lower() for l in LANGUAGES} for p in parts):
-                lang_text = line
-                break
+    lang_text = " ".join(sec.get("languages", []) + lang_lines)
     found = [(m.start(), l) for l in LANGUAGES
              if (m := re.search(rf"\b{l}\b", lang_text, re.I))]
     languages = [l for _, l in sorted(found)]  # keep the order used in the CV
@@ -187,5 +248,7 @@ def parse_cv(text: str) -> dict:
     }
     uncertain = [k for k in ("full_name", "email", "phone", "skills", "education",
                              "experience", "languages") if not data[k]]
+    if _text_fragmentation(text) > FRAGMENTATION_LIMIT:
+        uncertain.append("text_quality")  # extracted text is garbled: ask the user to check everything
     data["uncertain_fields"] = uncertain
     return data

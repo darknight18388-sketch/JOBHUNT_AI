@@ -111,9 +111,16 @@ export default function CV() {
 
       {form && (
         <div className="mt-6 space-y-3">
-          {uncertain.length > 0 && !confirmed && (
+          {uncertain.includes("text_quality") && !confirmed && (
+            <p role="alert" className="text-red-800 text-sm bg-red-50 border border-red-200 rounded p-2">
+              The text in this file came out garbled (spaces inside words), so some details may be wrong or
+              missing. Check every field below. For better results, upload the DOCX version of your CV or
+              re-export the PDF from Word / Google Docs using "Save as PDF" / "Download as PDF".
+            </p>
+          )}
+          {uncertain.filter((k) => k !== "text_quality").length > 0 && !confirmed && (
             <p className="text-amber-700 text-sm bg-amber-50 border border-amber-200 rounded p-2">
-              Could not find: {uncertain.join(", ")}. Please fill these in if they apply.
+              Could not find: {uncertain.filter((k) => k !== "text_quality").join(", ")}. Please fill these in if they apply.
             </p>
           )}
           {confirmed && <p className="text-green-700 text-sm">Confirmed by you.</p>}
