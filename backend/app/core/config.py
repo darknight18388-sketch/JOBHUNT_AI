@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     adzuna_app_key: str = ""
     adzuna_country: str = "gb"
     jooble_api_key: str = ""
+    careerjet_api_key: str = ""
+    careerjet_user_ip: str = ""  # optional: your public IP, if Careerjet rejects local addresses
     enable_arbeitnow: bool = False  # personal, non-commercial use only per its terms
 
 

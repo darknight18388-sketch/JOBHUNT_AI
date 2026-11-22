@@ -99,3 +99,22 @@ class ManualJobIn(BaseModel):
         if v and not v.lower().startswith(("http://", "https://")):
             raise ValueError("URL must start with http:// or https://")
         return v
+
+
+class CareerIn(BaseModel):
+    company: str = Field(min_length=1, max_length=200)
+    url: str = Field(min_length=8, max_length=1000)
+    country: str = Field(default="", max_length=8)
+
+
+class CareerOut(BaseModel):
+    id: uuid.UUID
+    company: str
+    url: str
+    ats: str
+    country: str
+    last_status: str
+    last_error: str
+    last_count: int
+    last_fetched_at: datetime | None
+    next_refresh_allowed_at: datetime | None

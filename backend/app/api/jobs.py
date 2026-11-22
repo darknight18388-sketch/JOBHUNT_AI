@@ -4,20 +4,23 @@ from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
 from app.core.countries import ANY, COUNTRIES, valid_country
 from app.database.session import get_db
-from app.models.job import Job, JobSource
+from app.models.job import CareerSource, Job, JobSource
 from app.models.resume import Resume, ResumeAnalysis
 from app.models.user import User
-from app.schemas.job import (ImportIn, JobList, JobOut, ManualJobIn, RefreshResult, SearchIn,
+from app.schemas.job import (CareerIn, CareerOut, ImportIn, JobList, JobOut, ManualJobIn, RefreshResult, SearchIn,
                              SearchOut, SourceOut)
+from app.services import careers
 from app.services.connectors import import_url as importer
+from app.services.connectors import web
 from app.services.connectors.base import JobConnector, NormalizedJob
+from app.services.connectors.context import client_context
 from app.services.connectors.registry import CONNECTORS
 from app.services.job_ingest import ingest
 
@@ -31,6 +34,7 @@ PRIVATE_SOURCES = ("manual", "import")
 SOFT_SKILLS = {"communication", "teamwork", "leadership", "problem solving", "customer service",
                "microsoft office", "excel", "powerpoint", "time management"}
 SOURCE_INFO = {
+    "career": ("Company career page", "From the company's own career page"),
     "manual": ("Added by you", "Added by you (unverified, check the official posting)"),
     "import": ("Imported link", "Imported from a link you gave (unverified, check the official posting)"),
 }
@@ -71,6 +75,8 @@ def _out(job: Job, full: bool) -> JobOut:
     if job.source_key == "rss":
         host = urlparse(job.url).netloc or "RSS feed"
         name, attribution = host, f"Job via {host} (official RSS feed)"
+    if job.source_key == "career" and job.company:
+        attribution = f"From {job.company}'s official career page"
     desc = job.description or ""
     if not full and len(desc) > 600:
         desc = desc[:600].rstrip() + "…"
@@ -142,8 +148,11 @@ def sources(user: User = Depends(get_current_user), db: Session = Depends(get_db
 
 
 @router.post("/search", response_model=SearchOut)
-def search(body: SearchIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def search(body: SearchIn, request: Request, user: User = Depends(get_current_user),
+           db: Session = Depends(get_db)):
     """Country -> the sources that serve it -> store new vacancies -> list them."""
+    client_context.set({"ip": request.client.host if request.client else "",
+                        "ua": request.headers.get("user-agent", "")[:300]})
     if not valid_country(body.country):
         raise HTTPException(400, "Unknown country.")
     typed = body.query.strip()
@@ -180,6 +189,11 @@ def search(body: SearchIn, user: User = Depends(get_current_user), db: Session =
         db.commit()
         log.info("connector %s ok: fetched=%d %s", key, len(items), stats)
         results.append(RefreshResult(source=key, status="ok", **stats))
+
+    for src in db.scalars(select(CareerSource).where(CareerSource.owner_user_id == user.id)):
+        if body.country == "ALL" or src.country in ("", body.country):  # your own watched career pages
+            applied.append("career")
+            results.append(RefreshResult(**careers.refresh_career(db, src)))
 
     conds = [_visible(user)]
     cc = _country_cond(body.country, body.include_remote, user)
@@ -225,6 +239,73 @@ def import_url(body: ImportIn, user: User = Depends(get_current_user), db: Sessi
         raise HTTPException(409, "You already added this job")
     job = db.scalar(select(Job).where(Job.source_key == "import", Job.external_id == item.external_id))
     return _out(job, True)
+
+
+# ---------------------------------------------------------------- company career pages
+def _career_out(s: CareerSource) -> CareerOut:
+    return CareerOut(id=s.id, company=s.company, url=s.url, ats=s.ats, country=s.country,
+                     last_status=s.last_status, last_error=s.last_error, last_count=s.last_count,
+                     last_fetched_at=_aware(s.last_fetched_at), next_refresh_allowed_at=careers.next_allowed(s))
+
+
+def _own_career(db: Session, user: User, cid: uuid.UUID) -> CareerSource:
+    s = db.scalar(select(CareerSource).where(CareerSource.id == cid, CareerSource.owner_user_id == user.id))
+    if s is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Career page not found")
+    return s
+
+
+@router.get("/careers", response_model=list[CareerOut])
+def list_careers(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    rows = db.scalars(select(CareerSource).where(CareerSource.owner_user_id == user.id)
+                      .order_by(CareerSource.created_at.desc()))
+    return [_career_out(s) for s in rows]
+
+
+@router.post("/careers", response_model=CareerOut, status_code=status.HTTP_201_CREATED)
+def add_career(body: CareerIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Watch a company's career page. Known ATS (Greenhouse, Lever, Ashby, Recruitee, Workable) -> its public
+    job-board API. Anything else -> the page's schema.org JobPosting data, only if robots.txt allows."""
+    url = body.url.strip()
+    if body.country and not valid_country(body.country):
+        raise HTTPException(400, "Unknown country.")
+    if not url.lower().startswith("https://"):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Use the https:// link of the career page.")
+    kind, token = careers.classify(url)
+    if kind == "jsonld":
+        try:
+            web.assert_public_url(url)
+        except ValueError as e:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e))
+        if not web.robots_allows(url):
+            raise HTTPException(status.HTTP_403_FORBIDDEN,
+                                "That site does not allow automated reading. Add its jobs manually instead.")
+    count = db.scalar(select(func.count()).select_from(CareerSource).where(CareerSource.owner_user_id == user.id))
+    if count >= careers.MAX_PER_USER:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"You can watch up to {careers.MAX_PER_USER} career pages.")
+    if db.scalar(select(CareerSource.id).where(CareerSource.owner_user_id == user.id, CareerSource.url == url)):
+        raise HTTPException(status.HTTP_409_CONFLICT, "You already added this career page")
+    src = CareerSource(owner_user_id=user.id, company=body.company.strip(), url=url[:1000], ats=kind,
+                       token=token, country=body.country)
+    db.add(src)
+    db.commit()
+    db.refresh(src)
+    return _career_out(src)
+
+
+@router.post("/careers/{cid}/refresh", response_model=RefreshResult)
+def refresh_career(cid: uuid.UUID, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return RefreshResult(**careers.refresh_career(db, _own_career(db, user, cid)))
+
+
+@router.delete("/careers/{cid}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_career(cid: uuid.UUID, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    s = _own_career(db, user, cid)
+    for j in db.scalars(select(Job).where(Job.source_key == "career", Job.owner_user_id == user.id,
+                                          Job.external_id.startswith(s.id.hex[:12] + ":", autoescape=True))):
+        db.delete(j)
+    db.delete(s)
+    db.commit()
 
 
 @router.get("", response_model=JobList)

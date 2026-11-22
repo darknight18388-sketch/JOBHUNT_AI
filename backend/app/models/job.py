@@ -45,3 +45,24 @@ class Job(Base):
     posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
     fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     dedupe_key: Mapped[str] = mapped_column(String(40), index=True)
+
+
+class CareerSource(Base):
+    """A company career page a user wants us to watch (private to that user)."""
+    __tablename__ = "career_sources"
+    __table_args__ = (UniqueConstraint("owner_user_id", "url", name="uq_career_owner_url"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    company: Mapped[str] = mapped_column(String(200))
+    url: Mapped[str] = mapped_column(String(1000))
+    ats: Mapped[str] = mapped_column(String(20))  # greenhouse|lever|ashby|recruitee|workable|jsonld
+    token: Mapped[str] = mapped_column(String(80), default="")
+    country: Mapped[str] = mapped_column(String(8), default="")
+    last_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_fetched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_status: Mapped[str] = mapped_column(String(20), default="never")
+    last_error: Mapped[str] = mapped_column(String(300), default="")
+    last_count: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)

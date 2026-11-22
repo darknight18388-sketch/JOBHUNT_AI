@@ -1,21 +1,19 @@
 # JOBHUNT AI
 Free, open-source, approval-based AI job search assistant (React + FastAPI + PostgreSQL + Ollama).
 
-## Run backend
+## Quick start (Kali / Debian)
 ```bash
-cd backend
-python3 -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
-cp ../.env.example ../.env
-uvicorn app.main:app --reload --port 8000
-pytest
+git clone https://github.com/darknight18388-sketch/JOBHUNT_AI.git
+cd JOBHUNT_AI
+./scripts/setup_kali.sh     # installs packages, creates the database and backend/.env, runs tests
+./scripts/dev.sh            # backend :8000 + frontend :5173 (Ctrl+C stops both)
 ```
-## Run frontend
-```bash
-cd frontend
-npm install
-npm run dev     # http://localhost:5173
-```
+Open http://localhost:5173 and register. `backend/.env` is created for you (never commit it).
+Optional free job-source keys (Jooble, Careerjet, Adzuna) go in `backend/.env`; see `.env.example`.
+
+## Company career pages
+Under Find Jobs -> Company career pages, add a company's careers link (Greenhouse, Lever, Ashby, Recruitee, Workable, or any page with standard job data). See `docs/JOB_SOURCES.md`.
+
 ## Roadmap
 - [x] Phase 1 - Environment check script
 - [x] Phase 2 - Project skeleton and UI

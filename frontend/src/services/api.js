@@ -55,3 +55,13 @@ export const jobSources = () => request("/api/jobs/sources");
 export const addManualJob = (body) =>
   request("/api/jobs/manual", { method: "POST", body: JSON.stringify(body) });
 export const deleteJob = (id) => request(`/api/jobs/${id}`, { method: "DELETE" });
+
+export const getJobTitles = () => request("/api/job-titles");
+export const getJobSites = (country, query) =>
+  request(`/api/job-sites?${new URLSearchParams({ country, query: query || "" })}`);
+
+export const listCareers = () => request("/api/jobs/careers");
+export const addCareer = (company, url, country) =>
+  request("/api/jobs/careers", { method: "POST", body: JSON.stringify({ company, url, country }) });
+export const refreshCareer = (id) => request(`/api/jobs/careers/${id}/refresh`, { method: "POST" });
+export const deleteCareer = (id) => request(`/api/jobs/careers/${id}`, { method: "DELETE" });
